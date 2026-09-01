@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f4ee" />
+    <meta name="description" content="一个轻量、私密的每日记账应用" />
+    <title>拾光账本</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MY LEDGER</p>
+          <h1>拾光账本</h1>
+        </div>
+        <button class="icon-button" id="todayButton" type="button" aria-label="回到今天" title="回到今天">
+          今
+        </button>
+      </header>
+
+      <main>
+        <section class="date-panel" aria-label="日期选择">
+          <button class="date-arrow" id="previousDay" type="button" aria-label="前一天">‹</button>
+          <label class="date-picker">
+            <span id="dateWeekday">星期一</span>
+            <input id="selectedDate" type="date" aria-label="选择日期" />
+          </label>
+          <button class="date-arrow" id="nextDay" type="button" aria-label="后一天">›</button>
+        </section>
+
+        <section class="summary-grid" aria-label="收支汇总">
+          <article class="summary-card daily-expense">
+            <span>当日支出</span>
+            <strong id="dailyExpense">¥0.00</strong>
+          </article>
+          <article class="summary-card daily-income">
+            <span>当日收入</span>
+            <strong id="dailyIncome">¥0.00</strong>
+          </article>
+          <article class="summary-card monthly-expense">
+            <span id="monthlyLabel">本月支出</span>
+            <strong id="monthlyExpense">¥0.00</strong>
+          </article>
+          <article class="summary-card yearly-expense">
+            <span id="yearlyLabel">本年支出</span>
+            <strong id="yearlyExpense">¥0.00</strong>
+          </article>
+        </section>
+
+        <section class="ledger-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">TODAY'S RECORDS</p>
+              <h2>当日明细</h2>
+            </div>
+            <span class="record-count" id="recordCount">0 笔</span>
+          </div>
+
+          <div class="transaction-list" id="transactionList"></div>
+
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">＋</div>
+            <h3>今天还没有记录</h3>
+            <p>记下第一笔收支，让每一分钱都有迹可循。</p>
+          </div>
+        </section>
+      </main>
+
+      <button class="add-button" id="openEntryDialog" type="button">
+        <span aria-hidden="true">＋</span>
+        记一笔
+      </button>
+    </div>
+
+    <dialog class="entry-dialog" id="entryDialog">
+      <form class="entry-form" id="entryForm" method="dialog">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">NEW RECORD</p>
+            <h2>记一笔</h2>
+          </div>
+          <button class="close-button" id="closeEntryDialog" type="button" aria-label="关闭">×</button>
+        </div>
+
+        <fieldset class="type-switch">
+          <legend class="sr-only">收支类型</legend>
+          <label>
+            <input type="radio" name="type" value="expense" checked />
+            <span>支出</span>
+          </label>
+          <label>
+            <input type="radio" name="type" value="income" />
+            <span>收入</span>
+          </label>
+        </fieldset>
+
+        <label class="field amount-field">
+          <span>金额</span>
+          <div><b>¥</b><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required /></div>
+        </label>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>日期</span>
+            <input id="entryDate" name="date" type="date" required />
+          </label>
+          <label class="field">
+            <span>分类</span>
+            <select id="category" name="category" required></select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>备注 <small>选填</small></span>
+          <input id="note" name="note" type="text" maxlength="40" placeholder="例如：午餐、兼职工资" />
+        </label>
+
+        <p class="form-error" id="formError" role="alert"></p>
+        <button class="save-button" type="submit">保存记录</button>
+      </form>
+    </dialog>
+
+    <template id="transactionTemplate">
+      <article class="transaction-item">
+        <div class="category-icon" aria-hidden="true"></div>
+        <div class="transaction-main">
+          <strong class="transaction-category"></strong>
+          <span class="transaction-note"></span>
+        </div>
+        <div class="transaction-value">
+          <strong class="transaction-amount"></strong>
+          <time class="transaction-time"></time>
+        </div>
+        <button class="delete-button" type="button" aria-label="删除记录">删除</button>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

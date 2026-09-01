@@ -1,0 +1,17 @@
+{
+  "name": "拾光账本",
+  "short_name": "拾光账本",
+  "description": "轻量、私密的每日记账应用",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f4ee",
+  "theme_color": "#315f51",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
