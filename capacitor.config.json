@@ -1,0 +1,12 @@
+{
+  "appId": "cn.shiguang.ledger",
+  "appName": "拾光账本",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#f7f4ee"
+  }
+}

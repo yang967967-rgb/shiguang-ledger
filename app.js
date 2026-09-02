@@ -215,6 +215,8 @@ dateInput.value = localDateString();
 updateCategoryOptions("expense");
 updateDateDisplay();
 
-if ("serviceWorker" in navigator && location.protocol !== "file:") {
+const isNativeApp = Boolean(globalThis.Capacitor?.isNativePlatform?.());
+
+if ("serviceWorker" in navigator && location.protocol !== "file:" && !isNativeApp) {
   navigator.serviceWorker.register("service-worker.js");
 }
