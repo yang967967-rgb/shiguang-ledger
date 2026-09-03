@@ -1,5 +1,8 @@
 name: Build Android APK
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -12,6 +15,7 @@ on:
       - "service-worker.js"
       - "icons/**"
       - "assets/**"
+      - "native/**"
       - "capacitor.config.json"
       - "package.json"
       - "package-lock.json"
@@ -45,12 +49,6 @@ jobs:
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Keep Android signing key stable
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: shiguang-ledger-debug-key-v1
-
       - name: Install dependencies
         run: npm ci
 
@@ -60,16 +58,32 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
-      - name: Configure Android app icon
+      - name: Restore permanent signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/shiguang-ledger-release.jks"
+
+      - name: Configure Android app
         run: node scripts/configure-android.js
         env:
           ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/shiguang-ledger-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Build installable APK
+      - name: Build signed release APK
         working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/shiguang-ledger-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - name: Read app version
         id: app-version
@@ -78,7 +92,10 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "shiguang-ledger-v${{ steps.app-version.outputs.version }}.apk"
+        run: cp android/app/build/outputs/apk/release/app-release.apk "shiguang-ledger-v${{ steps.app-version.outputs.version }}.apk"
+
+      - name: Verify APK signature
+        run: apksigner verify --verbose --print-certs "shiguang-ledger-v${{ steps.app-version.outputs.version }}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -87,3 +104,16 @@ jobs:
           path: shiguang-ledger-v${{ steps.app-version.outputs.version }}.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish version for in-app updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.app-version.outputs.version }}
+        run: |
+          APK="shiguang-ledger-v${VERSION}.apk"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" --target "$GITHUB_SHA" --title "拾光账本 ${TAG}" --notes "拾光账本 Android 正式版 ${TAG}。应用内可检查并安装后续版本。"
+          fi

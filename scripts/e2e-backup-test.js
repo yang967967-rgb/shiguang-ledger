@@ -40,13 +40,26 @@ async function main() {
       transactions = [];
       updateDateDisplay();
 
+      if (!isNewerVersion('1.3.0', '1.2.0')) throw new Error('Newer app version was not detected');
+      if (isNewerVersion('1.2.0', '1.2.0')) throw new Error('Current app version was treated as newer');
+
+      const originalFetch = window.fetch;
+      window.fetch = async () => new Response(JSON.stringify({
+        tag_name: 'v1.3.0',
+        assets: [{ name: 'shiguang-ledger-v1.3.0.apk', browser_download_url: 'https://github.com/yang967967-rgb/shiguang-ledger/releases/download/v1.3.0/shiguang-ledger-v1.3.0.apk' }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      await checkForUpdate(true);
+      window.fetch = originalFetch;
+      if (availableUpdate?.version !== '1.3.0') throw new Error('Release update was not prepared');
+      if (!document.querySelector('#updateStatus').textContent.includes('v1.3.0')) throw new Error('Update status was not rendered');
+
       document.querySelector('#openEntryDialog').click();
       document.querySelector('#amount').value = '28.50';
       document.querySelector('#note').value = '备份测试';
       document.querySelector('#entryForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
       const firstBackup = JSON.parse(createBackup());
-      if (firstBackup.appVersion !== '1.1.0') throw new Error('Wrong backup app version');
+      if (firstBackup.appVersion !== '1.2.0') throw new Error('Wrong backup app version');
       if (firstBackup.transactionCount !== 1) throw new Error('Transaction was not exported');
 
       const importedRecord = {

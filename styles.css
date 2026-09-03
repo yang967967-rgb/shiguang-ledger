@@ -353,6 +353,16 @@ h2 {
   background: var(--green-light);
 }
 
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.update-section {
+  border-color: #c9dcd3;
+  background: linear-gradient(145deg, #f7fbf8, #ffffff);
+}
+
 .add-button {
   position: fixed;
   right: max(24px, calc((100vw - 880px) / 2));

@@ -1,6 +1,6 @@
 # 拾光账本
 
-一个移动端优先、数据默认保存在本机的轻量记账应用。当前版本为 1.1.0。
+一个移动端优先、数据默认保存在本机的轻量记账应用。当前版本为 1.2.0。
 
 ## 项目结构
 
@@ -22,6 +22,7 @@
 - 所选年份总支出
 - 收支分类、备注和单笔删除
 - JSON 数据备份、导入恢复以及重复记录自动跳过
+- Android 应用内检查、下载并安装新版本
 - 本地数据持久化
 - PWA 离线缓存与添加到桌面支持
 - Android 及 iPhone 标准桌面图标
@@ -44,7 +45,9 @@ npm start
 
 项目已经接入 Capacitor。APK 会把网页资源直接打包进应用，不依赖 Chrome 或网络；Android WebView 的本地数据位于应用自己的沙盒中，与浏览器版互不相通。卸载应用会删除该应用中的账目。
 
-将源码上传到 GitHub 后，`.github/workflows/build-android-apk.yml` 会自动执行。也可以在仓库的 Actions 页面手动运行 `Build Android APK`。构建成功后，从任务页面底部的 Artifacts 下载带版本号的 Android 压缩包，解压即可得到 APK。
+将源码上传到 GitHub 后，`.github/workflows/build-android-apk.yml` 会自动执行，并使用 GitHub Secrets 中保存的永久签名构建 Release APK。构建成功后会创建对应版本的 GitHub Release；Android 应用会读取最新 Release，并在应用内完成下载，再交由安卓系统确认安装。
+
+Android 不允许普通应用静默替换自身。首次使用应用内更新时，需要允许拾光账本“安装未知应用”；以后每次更新仍会显示安卓系统安装确认页。
 
 本机开发需要 Node.js 22、Android Studio 2025.2.1 或更高版本，以及 Android SDK 24 或更高版本。常用命令：
 

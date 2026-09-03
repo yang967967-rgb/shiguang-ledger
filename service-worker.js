@@ -1,4 +1,4 @@
-const CACHE_NAME = "shiguang-ledger-v3";
+const CACHE_NAME = "shiguang-ledger-v4";
 const APP_FILES = [
   "./",
   "./index.html",

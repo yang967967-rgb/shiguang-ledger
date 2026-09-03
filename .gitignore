@@ -1,11 +1,12 @@
 node_modules/
 www/
-android/
+/android/
 .chrome-test/
 .chrome-e2e*/
 *.log
 release/
 archive/
+private-signing/
 shiguang-ledger-upload/
 shiguang-ledger-android/
 *.zip

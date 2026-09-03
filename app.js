@@ -1,7 +1,8 @@
 const STORAGE_KEY = "shiguang-ledger-transactions-v1";
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const BACKUP_FORMAT = "shiguang-ledger-backup";
 const MAX_BACKUP_SIZE = 5 * 1024 * 1024;
+const LATEST_RELEASE_URL = "https://api.github.com/repos/yang967967-rgb/shiguang-ledger/releases/latest";
 
 const categories = {
   expense: [
@@ -39,9 +40,12 @@ const backupFile = document.querySelector("#backupFile");
 const backupText = document.querySelector("#backupText");
 const importError = document.querySelector("#importError");
 const toast = document.querySelector("#toast");
+const updateButton = document.querySelector("#checkUpdate");
+const updateStatus = document.querySelector("#updateStatus");
 
 let transactions = loadTransactions();
 let toastTimer;
+let availableUpdate = null;
 
 function localDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -83,6 +87,90 @@ function showToast(message) {
   toastTimer = setTimeout(() => {
     toast.hidden = true;
   }, 3600);
+}
+
+function normalizedVersion(value) {
+  return String(value || "")
+    .replace(/^v/i, "")
+    .split(".")
+    .slice(0, 3)
+    .map((part) => Number.parseInt(part, 10) || 0);
+}
+
+function isNewerVersion(candidate, current) {
+  const next = normalizedVersion(candidate);
+  const installed = normalizedVersion(current);
+  for (let index = 0; index < 3; index += 1) {
+    if (next[index] !== installed[index]) return next[index] > installed[index];
+  }
+  return false;
+}
+
+async function checkForUpdate(silent = false) {
+  updateButton.disabled = true;
+  if (!silent) updateStatus.textContent = "正在检查新版本…";
+
+  try {
+    const response = await fetch(LATEST_RELEASE_URL, {
+      cache: "no-store",
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!response.ok) throw new Error(`检查更新失败（${response.status}）`);
+
+    const release = await response.json();
+    const apk = release.assets?.find((asset) => asset.name?.toLowerCase().endsWith(".apk"));
+    const version = String(release.tag_name || "").replace(/^v/i, "");
+
+    if (apk && isNewerVersion(version, APP_VERSION)) {
+      availableUpdate = { version, url: apk.browser_download_url };
+      updateStatus.textContent = `发现新版本 v${version}，可直接下载安装。`;
+      updateButton.textContent = `下载 v${version}`;
+      showToast(`发现拾光账本 v${version}。`);
+    } else {
+      availableUpdate = null;
+      updateStatus.textContent = `当前已是最新版本 v${APP_VERSION}。`;
+      updateButton.textContent = "重新检查";
+      if (!silent) showToast("当前已是最新版本。 ");
+    }
+  } catch (error) {
+    availableUpdate = null;
+    updateStatus.textContent = "暂时无法检查更新，请确认网络连接后重试。";
+    updateButton.textContent = "重新检查";
+    if (!silent) showToast(error.message || "检查更新失败。 ");
+  } finally {
+    updateButton.disabled = false;
+  }
+}
+
+async function downloadUpdate() {
+  if (!availableUpdate) {
+    await checkForUpdate(false);
+    return;
+  }
+
+  updateButton.disabled = true;
+  updateButton.textContent = "正在下载…";
+  updateStatus.textContent = "正在安全下载更新，完成后会打开安卓安装确认页。";
+
+  try {
+    const updater = globalThis.Capacitor?.Plugins?.AppUpdater;
+    if (isNativeApp && updater?.downloadAndInstall) {
+      await updater.downloadAndInstall({ url: availableUpdate.url });
+      updateStatus.textContent = "更新已下载，请在安卓系统界面确认安装。";
+    } else {
+      window.open(availableUpdate.url, "_blank", "noopener");
+      updateStatus.textContent = "已打开 APK 下载页面。";
+    }
+  } catch (error) {
+    const needsPermission = error?.code === "INSTALL_PERMISSION_REQUIRED";
+    updateStatus.textContent = needsPermission
+      ? "请允许拾光账本安装未知应用，返回后再次点击下载。"
+      : "更新失败，请稍后重试。";
+    showToast(error?.message || "更新失败，请稍后重试。 ");
+  } finally {
+    updateButton.disabled = false;
+    updateButton.textContent = availableUpdate ? `下载 v${availableUpdate.version}` : "检查更新";
+  }
 }
 
 function createBackup() {
@@ -327,6 +415,7 @@ dateInput.addEventListener("change", updateDateDisplay);
 document.querySelector("#openEntryDialog").addEventListener("click", openDialog);
 document.querySelector("#closeEntryDialog").addEventListener("click", () => entryDialog.close());
 document.querySelector("#exportBackup").addEventListener("click", exportBackup);
+updateButton.addEventListener("click", downloadUpdate);
 document.querySelector("#openImportDialog").addEventListener("click", () => {
   importForm.reset();
   importError.textContent = "";
@@ -379,6 +468,8 @@ updateCategoryOptions("expense");
 updateDateDisplay();
 
 const isNativeApp = Boolean(globalThis.Capacitor?.isNativePlatform?.());
+
+if (isNativeApp) setTimeout(() => checkForUpdate(true), 1500);
 
 if ("serviceWorker" in navigator && location.protocol !== "file:" && !isNativeApp) {
   navigator.serviceWorker.register("service-worker.js");
