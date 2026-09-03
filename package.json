@@ -1,6 +1,6 @@
 {
   "name": "shiguang-ledger",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "轻量、私密的每日记账应用",
   "scripts": {

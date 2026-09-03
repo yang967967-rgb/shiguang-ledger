@@ -1,4 +1,7 @@
 const STORAGE_KEY = "shiguang-ledger-transactions-v1";
+const APP_VERSION = "1.1.0";
+const BACKUP_FORMAT = "shiguang-ledger-backup";
+const MAX_BACKUP_SIZE = 5 * 1024 * 1024;
 
 const categories = {
   expense: [
@@ -30,8 +33,15 @@ const categorySelect = document.querySelector("#category");
 const transactionList = document.querySelector("#transactionList");
 const emptyState = document.querySelector("#emptyState");
 const formError = document.querySelector("#formError");
+const importDialog = document.querySelector("#importDialog");
+const importForm = document.querySelector("#importForm");
+const backupFile = document.querySelector("#backupFile");
+const backupText = document.querySelector("#backupText");
+const importError = document.querySelector("#importError");
+const toast = document.querySelector("#toast");
 
 let transactions = loadTransactions();
+let toastTimer;
 
 function localDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -64,6 +74,147 @@ function loadTransactions() {
 
 function saveTransactions() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+}
+
+function showToast(message) {
+  clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.hidden = false;
+  toastTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, 3600);
+}
+
+function createBackup() {
+  return JSON.stringify(
+    {
+      format: BACKUP_FORMAT,
+      formatVersion: 1,
+      appVersion: APP_VERSION,
+      exportedAt: new Date().toISOString(),
+      transactionCount: transactions.length,
+      transactions,
+    },
+    null,
+    2,
+  );
+}
+
+async function exportBackup() {
+  const content = createBackup();
+  const filename = `shiguang-ledger-backup-${localDateString()}.json`;
+  const file = new File([content], filename, { type: "application/json" });
+
+  try {
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        title: "拾光账本数据备份",
+        text: "请妥善保存此备份文件，其中包含完整账目。",
+        files: [file],
+      });
+      showToast("备份已交给系统分享，请选择安全位置保存。 ");
+      return;
+    }
+  } catch (error) {
+    if (error.name === "AbortError") return;
+  }
+
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  try {
+    await navigator.clipboard?.writeText(content);
+    showToast("已尝试下载备份，并复制备份文本；若没有文件，请粘贴文本保存。 ");
+  } catch {
+    showToast("已尝试下载备份；请检查系统的下载文件夹。 ");
+  }
+}
+
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = dateFromString(value);
+  return !Number.isNaN(date.getTime()) && localDateString(date) === value;
+}
+
+function normalizeImportedTransaction(item, index) {
+  if (!item || typeof item !== "object") throw new Error(`第 ${index + 1} 条记录不是有效对象。`);
+
+  const type = item.type;
+  const amount = Number(item.amount);
+  const date = String(item.date || "");
+  const category = String(item.category || "").trim();
+  const note = String(item.note || "").trim();
+  const createdAt = Number(item.createdAt);
+
+  if (!['expense', 'income'].includes(type)) throw new Error(`第 ${index + 1} 条记录的收支类型无效。`);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1e12) throw new Error(`第 ${index + 1} 条记录的金额无效。`);
+  if (!isValidDate(date)) throw new Error(`第 ${index + 1} 条记录的日期无效。`);
+  if (!category || category.length > 20) throw new Error(`第 ${index + 1} 条记录的分类无效。`);
+  if (note.length > 100) throw new Error(`第 ${index + 1} 条记录的备注过长。`);
+
+  return {
+    id: typeof item.id === "string" && item.id.length <= 120 ? item.id : `import-${date}-${type}-${amount}-${index}`,
+    type,
+    amount: Math.round(amount * 100) / 100,
+    date,
+    category,
+    note,
+    createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : Date.now() + index,
+  };
+}
+
+function parseBackup(content) {
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error("无法读取备份，请确认内容是完整的 JSON 文件。 ");
+  }
+
+  const items = Array.isArray(parsed) ? parsed : parsed?.transactions;
+  if (!Array.isArray(items)) throw new Error("这不是拾光账本支持的备份格式。 ");
+  if (items.length > 100000) throw new Error("备份记录过多，暂时无法导入。 ");
+  return items.map(normalizeImportedTransaction);
+}
+
+async function importBackup(event) {
+  event.preventDefault();
+  importError.textContent = "";
+
+  try {
+    const file = backupFile.files[0];
+    if (file && file.size > MAX_BACKUP_SIZE) throw new Error("备份文件不能超过 5 MB。 ");
+    const content = file ? await file.text() : backupText.value.trim();
+    if (!content) throw new Error("请选择备份文件，或粘贴备份文本。 ");
+
+    const imported = parseBackup(content);
+    const existingIds = new Set(transactions.map((item) => item.id));
+    const newItems = imported.filter((item) => !existingIds.has(item.id));
+    const duplicateCount = imported.length - newItems.length;
+
+    if (newItems.length === 0) {
+      importDialog.close();
+      showToast(`没有新增记录，已跳过 ${duplicateCount} 条重复数据。`);
+      return;
+    }
+
+    const confirmed = window.confirm(`将新增 ${newItems.length} 条记录${duplicateCount ? `，跳过 ${duplicateCount} 条重复记录` : ""}。确定导入吗？`);
+    if (!confirmed) return;
+
+    transactions = [...transactions, ...newItems];
+    saveTransactions();
+    importDialog.close();
+    updateDateDisplay();
+    showToast(`成功导入 ${newItems.length} 条记录。`);
+  } catch (error) {
+    importError.textContent = error.message || "导入失败，请检查备份文件。 ";
+  }
 }
 
 function getCategoryIcon(type, name) {
@@ -175,9 +326,21 @@ document.querySelector("#todayButton").addEventListener("click", () => {
 dateInput.addEventListener("change", updateDateDisplay);
 document.querySelector("#openEntryDialog").addEventListener("click", openDialog);
 document.querySelector("#closeEntryDialog").addEventListener("click", () => entryDialog.close());
+document.querySelector("#exportBackup").addEventListener("click", exportBackup);
+document.querySelector("#openImportDialog").addEventListener("click", () => {
+  importForm.reset();
+  importError.textContent = "";
+  importDialog.showModal();
+});
+document.querySelector("#closeImportDialog").addEventListener("click", () => importDialog.close());
+importForm.addEventListener("submit", importBackup);
 
 entryDialog.addEventListener("click", (event) => {
   if (event.target === entryDialog) entryDialog.close();
+});
+
+importDialog.addEventListener("click", (event) => {
+  if (event.target === importDialog) importDialog.close();
 });
 
 entryForm.querySelectorAll('input[name="type"]').forEach((input) => {

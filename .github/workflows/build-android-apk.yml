@@ -8,6 +8,8 @@ on:
       - "index.html"
       - "styles.css"
       - "app.js"
+      - "manifest.webmanifest"
+      - "service-worker.js"
       - "icons/**"
       - "assets/**"
       - "capacitor.config.json"
@@ -60,6 +62,8 @@ jobs:
 
       - name: Configure Android app icon
         run: node scripts/configure-android.js
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
 
       - name: Build installable APK
         working-directory: android
@@ -67,13 +71,17 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Read app version
+        id: app-version
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk shiguang-ledger.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "shiguang-ledger-v${{ steps.app-version.outputs.version }}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: shiguang-ledger-android
-          path: shiguang-ledger.apk
+          name: shiguang-ledger-v${{ steps.app-version.outputs.version }}-android
+          path: shiguang-ledger-v${{ steps.app-version.outputs.version }}.apk
           if-no-files-found: error
           retention-days: 30
